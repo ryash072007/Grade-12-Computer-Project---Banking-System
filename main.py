@@ -106,8 +106,13 @@ def deposit(connection, user_id, account_id, amount):
 
 def withdraw(connection, user_id, account_id, amount):
     cursor = connection.cursor()
-    cursor.execute("SELECT balance FROM Accounts WHERE id = %s", (account_id,))
-    balance = cursor.fetchone()[0]
+    cursor.execute("SELECT balance FROM Accounts WHERE id = %s AND user_id = %s", (account_id, user_id))
+    balance = cursor.fetchone()
+    if balance:
+        balance = balance[0]
+    else:
+        print("Unauthorised user for account")
+        return
     if balance >= amount:
         cursor.execute(
             "UPDATE Accounts SET balance = balance - %s WHERE id = %s",
@@ -280,7 +285,6 @@ def main():
 
 
 def user_menu(connection, user):
-    print(user)
     while True:
         print("\nUser Menu")
         print("1. Create Account")
