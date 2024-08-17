@@ -119,17 +119,22 @@ def withdraw(connection, user_id, account_id, amount):
         )
         connection.commit()
         print("Withdrawal successful!")
+        return True
     else:
         print("Insufficient balance!")
+        return False
 
 
 def calculate_interest(connection, account_id):
     cursor = connection.cursor()
     cursor.execute(
-        "SELECT balance, interest_rate, last_interest_date FROM Accounts WHERE id = %s",
+        "SELECT balance, interest_rate, last_interest_date, account_type FROM Accounts WHERE id = %s",
         (account_id,),
     )
-    balance, interest_rate, last_interest_date = cursor.fetchone()
+    balance, interest_rate, last_interest_date, account_type = cursor.fetchone()
+    if account_type != "savings":
+        print("Account is not a savings account")
+        return
     today = datetime.date.today()
     days_diff = (today - last_interest_date).days
     if days_diff > 0:
@@ -140,11 +145,13 @@ def calculate_interest(connection, account_id):
         )
         connection.commit()
         print(f"Interest calculated: {interest:.2f}")
+    else:
+        print("Last interest was already added today")
 
 
 def transfer_funds(connection, user_id, from_account_id, to_account_id, amount):
-    withdraw(connection, user_id, from_account_id, amount)
-    deposit(connection, user_id, to_account_id, amount)
+    if withdraw(connection, user_id, from_account_id, amount):
+        deposit(connection, user_id, to_account_id, amount)
     print("Funds transferred successfully!")
 
 
@@ -158,14 +165,26 @@ def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period)
     print("Loan application successful!")
 
 
-def repay_loan(connection, loan_id, amount):
+def repay_loan(connection, loan_id, account_id, amount, user_id):
     cursor = connection.cursor()
-    cursor.execute(
-        "UPDATE Loans SET loan_amount = loan_amount - %s WHERE id = %s",
-        (amount, loan_id),
-    )
-    connection.commit()
-    print("Loan repayment successful!")
+    query = """
+    SELECT loan_amount FROM Loans WHERE id = %s
+    """
+    cursor.execute(query, (loan_id, ))
+    loan_amount = cursor.fetchone()[0]
+    is_active = "True"
+    if amount - float(loan_amount) >= 0:
+        is_active = "False"
+
+    if withdraw(connection, user_id, account_id, amount):
+        cursor.execute(
+            "UPDATE Loans SET loan_amount = loan_amount - %s , active = %s WHERE id = %s",
+            (amount, is_active, loan_id),
+        )
+        connection.commit()
+        print("Loan repayment successful!")
+    else:
+        print("Repayment Failed")
 
 
 def view_statement(connection, account_id):
@@ -174,6 +193,59 @@ def view_statement(connection, account_id):
     transactions = cursor.fetchall()
     for transaction in transactions:
         print(transaction)
+
+
+def get_all_active_loans(connection, user_id):
+    cursor = connection.cursor()
+    query = """
+    SELECT * FROM Loans 
+    WHERE user_id = %s AND active = "True"
+    """
+    cursor.execute(query, (user_id, ))
+    active_loans = cursor.fetchall()
+
+    if active_loans:
+            print("\nYour Loans:")
+            for loan in active_loans:
+                loan_id, _, loan_amount, interest_rate, loan_period, _ = (
+                    loan
+                )
+                print(f"Loan ID: {loan_id}")
+                print(f"Loan Amount: ${loan_amount:.2f}")
+                print(f"Interest Rate: {interest_rate}% per annum")
+                print(f"loan_period: {loan_period}")
+                print("-" * 30)
+    else:
+        print("No Loans found.")
+
+    return active_loans
+
+def get_all_accounts(connection, user_id):
+    cursor = connection.cursor()
+    query = """
+    SELECT id, account_type, balance, interest_rate, last_interest_date 
+    FROM Accounts 
+    WHERE user_id = %s
+    """
+    cursor.execute(query, (user_id,))
+    accounts = cursor.fetchall()
+
+    if accounts:
+        print("\nYour Accounts:")
+        for account in accounts:
+            account_id, account_type, balance, interest_rate, last_interest_date = (
+                account
+            )
+            print(f"Account ID: {account_id}")
+            print(f"Account Type: {account_type.capitalize()}")
+            print(f"Balance: ${balance:.2f}")
+            print(f"Interest Rate: {interest_rate}% per annum")
+            print(f"Last Interest Date: {last_interest_date}")
+            print("-" * 30)
+    else:
+        print("No accounts found.")
+
+    return accounts
 
 
 def main():
@@ -208,6 +280,7 @@ def main():
 
 
 def user_menu(connection, user):
+    print(user)
     while True:
         print("\nUser Menu")
         print("1. Create Account")
@@ -217,7 +290,10 @@ def user_menu(connection, user):
         print("5. Apply for Loan")
         print("6. Repay Loan")
         print("7. View Account Statement")
-        print("8. Logout")
+        print("8. View All Accounts")
+        print("9. View All Loans")
+        print("10. Calculate Interest")
+        print("11. Logout")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -243,12 +319,20 @@ def user_menu(connection, user):
             apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period)
         elif choice == "6":
             loan_id = int(input("Enter loan ID: "))
+            repay_from_account_id = int(input("Enter account to repay from: "))
             amount = float(input("Enter amount to repay: "))
-            repay_loan(connection, loan_id, amount)
+            repay_loan(connection, loan_id, repay_from_account_id, amount, user[0])
         elif choice == "7":
             account_id = int(input("Enter account ID: "))
             view_statement(connection, account_id)
         elif choice == "8":
+            get_all_accounts(connection, user[0])
+        elif choice == "9":
+            get_all_active_loans(connection, user[0])
+        elif choice == "10":
+            account_id = int(input("Enter account ID: "))
+            calculate_interest(connection, account_id)
+        elif choice == "11":
             print("Logging out...")
             break
         else:
