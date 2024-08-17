@@ -1,0 +1,41 @@
+CREATE DATABASE banking_system;
+
+USE banking_system;
+
+CREATE TABLE Users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    account_type ENUM('savings', 'checkings'),
+    balance DECIMAL(15, 2) DEFAULT 0.00,
+    interest_rate DECIMAL(5, 2) DEFAULT 0.00,
+    last_interest_date DATE,
+    FOREIGN KEY (user_id) REFERENCES Users(id)
+);
+
+CREATE TABLE Transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    account_id INT NOT NULL,
+    transaction_type VARCHAR(50),
+    amount DECIMAL(10, 2),
+    transaction_date DATETIME,
+    FOREIGN KEY (user_id) REFERENCES Users(id),
+    FOREIGN KEY (account_id) REFERENCES Accounts(id)
+);
+
+
+CREATE TABLE Loans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    active varchar(5) DEFAULT 'True',
+    loan_amount DECIMAL(15, 2),
+    interest_rate DECIMAL(5, 2),
+    loan_period INT, -- Loan period in months
+    FOREIGN KEY (user_id) REFERENCES Users(id)
+);
