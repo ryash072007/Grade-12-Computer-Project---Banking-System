@@ -21,14 +21,7 @@ Features:
     ii Loan Repayment -> Users can make manual repayments and the system keeps track of it
 6. Account Statement:
     i. User can view all the transations that have been processed
-    ii. User can sort through different type of transactions
 
-Database Structure:
-
-1. User Table (ID, Username, Password)
-2. Accounts Table (ID, User Foreign Key, Account Type, Account Balance, Interest rate per annum, last date when interest was added to account)
-3. Accounts Transactions (ID, User Foreign Key, Account Foreign Key, Account Action Type)
-4. (OPTIONAL) Loans Table (ID, User Foreign Key, loan amount, interest rate, time period of loan)
 """
 
 import mysql.connector
