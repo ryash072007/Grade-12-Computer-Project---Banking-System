@@ -1,4 +1,4 @@
-'''
+"""
 The main file for 12th Grade Computer Project 2024 for:
 1. Yash
 2. Atharv
@@ -29,4 +29,231 @@ Database Structure:
 2. Accounts Table (ID, User Foreign Key, Account Type, Account Balance, Interest rate per annum, last date when interest was added to account)
 3. Accounts Transactions (ID, User Foreign Key, Account Foreign Key, Account Action Type)
 4. (OPTIONAL) Loans Table (ID, User Foreign Key, loan amount, interest rate, time period of loan)
-'''
+"""
+
+import mysql.connector
+from mysql.connector import Error
+import datetime
+
+
+def create_connection():
+    try:
+        connection = mysql.connector.connect(
+            host="localhost",
+            database="banking_system",
+            user="root",
+            password="mysql",
+            port=3307,
+        )
+        if connection.is_connected():
+            print("Connection to MySQL DB successful")
+        return connection
+    except Error as e:
+        print(f"Error: '{e}'")
+        return None
+
+
+def register_user(connection, username, password):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO Users (username, password) VALUES (%s, %s)",
+            (username, password),
+        )
+        connection.commit()
+        print("User registered successfully!")
+    except Error as e:
+        print(f"Error: '{e}'")
+
+
+def login_user(connection, username, password):
+    cursor = connection.cursor()
+    cursor.execute(
+        "SELECT * FROM Users WHERE username=%s AND password=%s", (username, password)
+    )
+    user = cursor.fetchone()
+    if user:
+        print("Login successful!")
+        return user
+    else:
+        print("Login failed!")
+        return None
+
+
+def create_account(connection, user_id, account_type):
+    cursor = connection.cursor()
+    interest_rate = 3.5 if account_type == "savings" else 0.0
+    cursor.execute(
+        "INSERT INTO Accounts (user_id, account_type, interest_rate, last_interest_date) VALUES (%s, %s, %s, CURDATE())",
+        (user_id, account_type, interest_rate),
+    )
+    connection.commit()
+    print(f"{account_type.capitalize()} account created successfully!")
+
+
+def deposit(connection, user_id, account_id, amount):
+    cursor = connection.cursor()
+    cursor.execute(
+        "UPDATE Accounts SET balance = balance + %s WHERE id = %s", (amount, account_id)
+    )
+    cursor.execute(
+        "INSERT INTO Transactions (user_id, account_id, transaction_type, amount) VALUES (%s, %s, 'deposit', %s)",
+        (user_id, account_id, amount),
+    )
+    connection.commit()
+    print("Deposit successful!")
+
+
+def withdraw(connection, user_id, account_id, amount):
+    cursor = connection.cursor()
+    cursor.execute("SELECT balance FROM Accounts WHERE id = %s", (account_id,))
+    balance = cursor.fetchone()[0]
+    if balance >= amount:
+        cursor.execute(
+            "UPDATE Accounts SET balance = balance - %s WHERE id = %s",
+            (amount, account_id),
+        )
+        cursor.execute(
+            "INSERT INTO Transactions (user_id, account_id, transaction_type, amount) VALUES (%s, %s, 'withdrawal', %s)",
+            (user_id, account_id, amount),
+        )
+        connection.commit()
+        print("Withdrawal successful!")
+    else:
+        print("Insufficient balance!")
+
+
+def calculate_interest(connection, account_id):
+    cursor = connection.cursor()
+    cursor.execute(
+        "SELECT balance, interest_rate, last_interest_date FROM Accounts WHERE id = %s",
+        (account_id,),
+    )
+    balance, interest_rate, last_interest_date = cursor.fetchone()
+    today = datetime.date.today()
+    days_diff = (today - last_interest_date).days
+    if days_diff > 0:
+        interest = (balance * interest_rate * days_diff) / (365 * 100)
+        cursor.execute(
+            "UPDATE Accounts SET balance = balance + %s, last_interest_date = %s WHERE id = %s",
+            (interest, today, account_id),
+        )
+        connection.commit()
+        print(f"Interest calculated: {interest:.2f}")
+
+
+def transfer_funds(connection, user_id, from_account_id, to_account_id, amount):
+    withdraw(connection, user_id, from_account_id, amount)
+    deposit(connection, user_id, to_account_id, amount)
+    print("Funds transferred successfully!")
+
+
+def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period):
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO Loans (user_id, loan_amount, interest_rate, loan_period) VALUES (%s, %s, %s, %s)",
+        (user_id, loan_amount, interest_rate, loan_period),
+    )
+    connection.commit()
+    print("Loan application successful!")
+
+
+def repay_loan(connection, loan_id, amount):
+    cursor = connection.cursor()
+    cursor.execute(
+        "UPDATE Loans SET loan_amount = loan_amount - %s WHERE id = %s",
+        (amount, loan_id),
+    )
+    connection.commit()
+    print("Loan repayment successful!")
+
+
+def view_statement(connection, account_id):
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM Transactions WHERE account_id = %s", (account_id,))
+    transactions = cursor.fetchall()
+    for transaction in transactions:
+        print(transaction)
+
+
+def main():
+    connection = create_connection()
+    if not connection:
+        return
+
+    while True:
+        print("\nWelcome to the Banking System")
+        print("1. Register")
+        print("2. Login")
+        print("3. Exit")
+        choice = input("Choose an option: ")
+
+        if choice == "1":
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            register_user(connection, username, password)
+        elif choice == "2":
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            user = login_user(connection, username, password)
+            if user:
+                user_menu(connection, user)
+        elif choice == "3":
+            print("Exiting...")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+    connection.close()
+
+
+def user_menu(connection, user):
+    while True:
+        print("\nUser Menu")
+        print("1. Create Account")
+        print("2. Deposit")
+        print("3. Withdraw")
+        print("4. Transfer Funds")
+        print("5. Apply for Loan")
+        print("6. Repay Loan")
+        print("7. View Account Statement")
+        print("8. Logout")
+        choice = input("Choose an option: ")
+
+        if choice == "1":
+            account_type = input("Enter account type (savings/checkings): ")
+            create_account(connection, user[0], account_type)
+        elif choice == "2":
+            account_id = int(input("Enter account ID: "))
+            amount = float(input("Enter amount to deposit: "))
+            deposit(connection, user[0], account_id, amount)
+        elif choice == "3":
+            account_id = int(input("Enter account ID: "))
+            amount = float(input("Enter amount to withdraw: "))
+            withdraw(connection, user[0], account_id, amount)
+        elif choice == "4":
+            from_account_id = int(input("Enter your account ID: "))
+            to_account_id = int(input("Enter recipient account ID: "))
+            amount = float(input("Enter amount to transfer: "))
+            transfer_funds(connection, user[0], from_account_id, to_account_id, amount)
+        elif choice == "5":
+            loan_amount = float(input("Enter loan amount: "))
+            interest_rate = float(input("Enter interest rate: "))
+            loan_period = int(input("Enter loan period (in months): "))
+            apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period)
+        elif choice == "6":
+            loan_id = int(input("Enter loan ID: "))
+            amount = float(input("Enter amount to repay: "))
+            repay_loan(connection, loan_id, amount)
+        elif choice == "7":
+            account_id = int(input("Enter account ID: "))
+            view_statement(connection, account_id)
+        elif choice == "8":
+            print("Logging out...")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+
+if __name__ == "__main__":
+    main()
