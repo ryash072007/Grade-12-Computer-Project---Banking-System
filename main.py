@@ -33,10 +33,11 @@ def create_connection():
     try:
         connection = mysql.connector.connect(
             host="localhost",
-            database="banking_system",
+            # database="banking_system",
+            database="test_banking",
             user="root",
             password="mysql",
-            port=3307,
+            port=3307
         )
         if connection.is_connected():
             print("Connection to MySQL DB successful")
@@ -90,7 +91,8 @@ def deposit(connection, user_id, account_id, amount):
         "UPDATE Accounts SET balance = balance + %s WHERE id = %s", (amount, account_id)
     )
     cursor.execute(
-        "INSERT INTO Transactions (user_id, account_id, transaction_type, amount) VALUES (%s, %s, 'deposit', %s)",
+        "INSERT INTO Transactions (user_id, account_id, transaction_type, amount, transaction_date) VALUES (%s, %s, 'deposit', %s,  CURDATE())",
+
         (user_id, account_id, amount),
     )
     connection.commit()
@@ -111,8 +113,12 @@ def withdraw(connection, user_id, account_id, amount):
             "UPDATE Accounts SET balance = balance - %s WHERE id = %s",
             (amount, account_id),
         )
+
+        # today = datetime.date.today().isoformat()
+        # print(today)
+        
         cursor.execute(
-            "INSERT INTO Transactions (user_id, account_id, transaction_type, amount) VALUES (%s, %s, 'withdrawal', %s)",
+            "INSERT INTO Transactions (user_id, account_id, transaction_type, amount, transaction_date) VALUES (%s, %s, 'withdrawal', %s, now())",
             (user_id, account_id, amount),
         )
         connection.commit()
@@ -157,7 +163,8 @@ def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period)
     cursor = connection.cursor()
     cursor.execute(
         "INSERT INTO Loans (user_id, loan_amount, interest_rate, loan_period) VALUES (%s, %s, %s, %s)",
-        (user_id, loan_amount, interest_rate, loan_period),
+        (user_id, loan_amount +  (loan_amount * interest_rate * loan_period) / 1200, interest_rate, loan_period),
+
     )
     connection.commit()
     print("Loan application successful!")
@@ -189,9 +196,12 @@ def view_statement(connection, account_id):
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM Transactions WHERE account_id = %s", (account_id,))
     transactions = cursor.fetchall()
+    if not transactions:
+        print("No transactions found")
+        return
+    print(f'{"Account ID":<10} {"Transaction Type":<16} {"Amount":<8} {"Transaction Date":<10}')
     for transaction in transactions:
-        print(transaction)
-
+        print(f'{transaction[2]:<10} {transaction[3]:<16} {transaction[4]:<8} {str(transaction[5])[:-9]}')
 
 def get_all_active_loans(connection, user_id):
     cursor = connection.cursor()
@@ -205,11 +215,11 @@ def get_all_active_loans(connection, user_id):
     if active_loans:
             print("\nYour Loans:")
             for loan in active_loans:
-                loan_id, _, loan_amount, interest_rate, loan_period, _ = (
+                loan_id, _, _, loan_amount, interest_rate, loan_period = (
                     loan
                 )
                 print(f"Loan ID: {loan_id}")
-                print(f"Loan Amount: ${loan_amount:.2f}")
+                print(f"Loan Amount: ${loan_amount}")
                 print(f"Interest Rate: {interest_rate}% per annum")
                 print(f"loan_period: {loan_period}")
                 print("-" * 30)
@@ -246,10 +256,60 @@ def get_all_accounts(connection, user_id):
     return accounts
 
 
+def setup_database(connection):
+    query = """
+    CREATE TABLE Users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    account_type ENUM('savings', 'checkings'),
+    balance DECIMAL(15, 2) DEFAULT 0.00,
+    interest_rate DECIMAL(5, 2) DEFAULT 0.00,
+    last_interest_date DATE,
+    FOREIGN KEY (user_id) REFERENCES Users(id)
+);
+
+CREATE TABLE Transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    account_id INT NOT NULL,
+    transaction_type VARCHAR(50),
+    amount DECIMAL(10, 2),
+    transaction_date DATETIME,
+    FOREIGN KEY (user_id) REFERENCES Users(id),
+    FOREIGN KEY (account_id) REFERENCES Accounts(id)
+);
+
+
+CREATE TABLE Loans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    active varchar(5) DEFAULT 'True',
+    loan_amount DECIMAL(15, 2),
+    interest_rate DECIMAL(5, 2),
+    loan_period INT, -- Loan period in months
+    FOREIGN KEY (user_id) REFERENCES Users(id)
+);
+    """
+
+    cursor = connection.cursor()
+    cursor.execute("show tables")
+    existing_tables = cursor.fetchall()
+    if not existing_tables:
+        cursor.execute(query)
+
+
 def main():
     connection = create_connection()
     if not connection:
         return
+
+    setup_database(connection)
 
     while True:
         print("\nWelcome to the Banking System")
@@ -278,62 +338,66 @@ def main():
 
 
 def user_menu(connection, user):
-    while True:
-        print("\nUser Menu")
-        print("1. Create Account")
-        print("2. Deposit")
-        print("3. Withdraw")
-        print("4. Transfer Funds")
-        print("5. Apply for Loan")
-        print("6. Repay Loan")
-        print("7. View Account Statement")
-        print("8. View All Accounts")
-        print("9. View All Loans")
-        print("10. Calculate Interest")
-        print("11. Logout")
-        choice = input("Choose an option: ")
+    should_exit = False
+    while not should_exit:
+        try:
+            print("\nUser Menu")
+            print("1. Create Account")
+            print("2. Deposit")
+            print("3. Withdraw")
+            print("4. Transfer Funds")
+            print("5. Apply for Loan")
+            print("6. Repay Loan")
+            print("7. View Account Statement")
+            print("8. View All Accounts")
+            print("9. View All Loans")
+            print("10. Calculate Interest")
+            print("11. Logout")
+            choice = input("Choose an option: ")
 
-        if choice == "1":
-            account_type = input("Enter account type (savings/checkings): ")
-            create_account(connection, user[0], account_type)
-        elif choice == "2":
-            account_id = int(input("Enter account ID: "))
-            amount = float(input("Enter amount to deposit: "))
-            deposit(connection, user[0], account_id, amount)
-        elif choice == "3":
-            account_id = int(input("Enter account ID: "))
-            amount = float(input("Enter amount to withdraw: "))
-            withdraw(connection, user[0], account_id, amount)
-        elif choice == "4":
-            from_account_id = int(input("Enter your account ID: "))
-            to_account_id = int(input("Enter recipient account ID: "))
-            amount = float(input("Enter amount to transfer: "))
-            transfer_funds(connection, user[0], from_account_id, to_account_id, amount)
-        elif choice == "5":
-            loan_amount = float(input("Enter loan amount: "))
-            interest_rate = float(input("Enter interest rate: "))
-            loan_period = int(input("Enter loan period (in months): "))
-            apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period)
-        elif choice == "6":
-            loan_id = int(input("Enter loan ID: "))
-            repay_from_account_id = int(input("Enter account to repay from: "))
-            amount = float(input("Enter amount to repay: "))
-            repay_loan(connection, loan_id, repay_from_account_id, amount, user[0])
-        elif choice == "7":
-            account_id = int(input("Enter account ID: "))
-            view_statement(connection, account_id)
-        elif choice == "8":
-            get_all_accounts(connection, user[0])
-        elif choice == "9":
-            get_all_active_loans(connection, user[0])
-        elif choice == "10":
-            account_id = int(input("Enter account ID: "))
-            calculate_interest(connection, account_id)
-        elif choice == "11":
-            print("Logging out...")
-            break
-        else:
-            print("Invalid choice. Please try again.")
+            if choice == "1":
+                account_type = input("Enter account type (savings/checkings): ")
+                create_account(connection, user[0], account_type)
+            elif choice == "2":
+                account_id = int(input("Enter account ID: "))
+                amount = float(input("Enter amount to deposit: "))
+                deposit(connection, user[0], account_id, amount)
+            elif choice == "3":
+                account_id = int(input("Enter account ID: "))
+                amount = float(input("Enter amount to withdraw: "))
+                withdraw(connection, user[0], account_id, amount)
+            elif choice == "4":
+                from_account_id = int(input("Enter your account ID: "))
+                to_account_id = int(input("Enter recipient account ID: "))
+                amount = float(input("Enter amount to transfer: "))
+                transfer_funds(connection, user[0], from_account_id, to_account_id, amount)
+            elif choice == "5":
+                loan_amount = float(input("Enter loan amount: "))
+                interest_rate = float(input("Enter interest rate: "))
+                loan_period = int(input("Enter loan period (in months): "))
+                apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period)
+            elif choice == "6":
+                loan_id = int(input("Enter loan ID: "))
+                repay_from_account_id = int(input("Enter account to repay from: "))
+                amount = float(input("Enter amount to repay: "))
+                repay_loan(connection, loan_id, repay_from_account_id, amount, user[0])
+            elif choice == "7":
+                account_id = int(input("Enter account ID: "))
+                view_statement(connection, account_id)
+            elif choice == "8":
+                get_all_accounts(connection, user[0])
+            elif choice == "9":
+                get_all_active_loans(connection, user[0])
+            elif choice == "10":
+                account_id = int(input("Enter account ID: "))
+                calculate_interest(connection, account_id)
+            elif choice == "11":
+                print("Logging out...")
+                should_exit = True
+            else:
+                print("Invalid choice. Please try again.")
+        except:
+            user_menu(connection, user)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,27 @@
+INSERT INTO Users (username, password)
+VALUES 
+    ('john_doe', 'hashed_password_1'),
+    ('jane_smith', 'hashed_password_2'),
+    ('robert_jones', 'hashed_password_3');
+
+INSERT INTO Accounts (user_id, account_type, balance, interest_rate, last_interest_date)
+VALUES 
+    (1, 'savings', 1500.50, 1.25, '2024-01-01'),
+    (1, 'checkings', 500.00, 0.00, '2024-01-01'),
+    (2, 'savings', 3000.75, 1.50, '2024-01-05'),
+    (2, 'checkings', 800.25, 0.00, '2024-01-05'),
+    (3, 'savings', 10000.00, 2.00, '2024-01-10');
+
+INSERT INTO Transactions (user_id, account_id, transaction_type, amount, transaction_date)
+VALUES 
+    (1, 1, 'deposit', 1500.50, '2024-01-01 10:00:00'),
+    (1, 2, 'withdrawal', 100.00, '2024-01-02 11:30:00'),
+    (2, 3, 'deposit', 3000.75, '2024-01-05 12:00:00'),
+    (2, 4, 'withdrawal', 200.25, '2024-01-06 09:00:00'),
+    (3, 5, 'deposit', 10000.00, '2024-01-10 08:45:00');
+
+INSERT INTO Loans (user_id, active, loan_amount, interest_rate, loan_period)
+VALUES 
+    (1, 'True', 5000.00, 3.50, 24),  -- Loan for 2 years
+    (2, 'False', 15000.00, 4.00, 36), -- Completed loan of 3 years
+    (3, 'True', 20000.00, 4.75, 48);  -- Loan for 4 years
