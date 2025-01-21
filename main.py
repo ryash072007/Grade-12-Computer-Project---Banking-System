@@ -133,20 +133,26 @@ def withdraw(connection, user_id, account_id, amount):
 def calculate_interest(connection, account_id, user_id):
     cursor = connection.cursor()
 
+    # Checking if the account belongs to the user
     cursor.execute("SELECT user_id FROM Accounts WHERE id = %s", (account_id,))
     account_user_id = cursor.fetchone()
     if account_user_id[0] != user_id:
         print("Unauthorised user for account")
         return
 
+    # Getting the account details
     cursor.execute(
         "SELECT balance, interest_rate, last_interest_date, account_type FROM Accounts WHERE id = %s",
         (account_id,),
     )
+
+    # Checking if the account is of savings type, where interest is applicable
     balance, interest_rate, last_interest_date, account_type = cursor.fetchone()
     if account_type != "savings":
         print("Account is not a savings account")
         return
+    
+    # Checking if atleast one day has passed since SI calculation and updating the balance
     today = datetime.date.today()
     days_diff = (today - last_interest_date).days
     if days_diff > 0:
@@ -195,6 +201,8 @@ def repay_loan(connection, loan_id, account_id, amount, user_id):
     cursor.execute(query, (loan_id, ))
     loan_amount = cursor.fetchone()[0]
     is_active = "True"
+
+    # Checking if the loan is going to be completely repaid and updating the loan active status
     if amount - float(loan_amount) >= 0:
         amount = float(loan_amount)
         is_active = "False"
