@@ -18,10 +18,13 @@ Features:
     ii. Allow transfer between different users
 5. Loan Management:
     i. Loan Applications -> Make your own loan with different conditions for different interest rates
-    ii Loan Repayment -> Users can make manual repayments and the system keeps track of it
+    ii. Loan Repayment -> Users can make manual repayments and the system keeps track of it
 6. Account Statement:
-    i. User can view all the transations that have been processed
-
+    i. User can view all the transactions that have been processed
+7. View All Accounts:
+    i. User can view all their accounts with details
+8. View All Loans:
+    i. User can view all their active loans with details
 """
 
 import mysql.connector
