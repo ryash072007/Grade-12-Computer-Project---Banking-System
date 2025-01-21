@@ -156,7 +156,7 @@ def calculate_interest(connection, account_id):
 def transfer_funds(connection, user_id, from_account_id, to_account_id, amount):
     if withdraw(connection, user_id, from_account_id, amount):
         deposit(connection, user_id, to_account_id, amount)
-    print("Funds transferred successfully!")
+        print("Funds transferred successfully!")
 
 
 def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period):
@@ -179,6 +179,7 @@ def repay_loan(connection, loan_id, account_id, amount, user_id):
     loan_amount = cursor.fetchone()[0]
     is_active = "True"
     if amount - float(loan_amount) >= 0:
+        amount = float(loan_amount)
         is_active = "False"
 
     if withdraw(connection, user_id, account_id, amount):
