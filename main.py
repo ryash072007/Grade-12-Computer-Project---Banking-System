@@ -114,8 +114,6 @@ def withdraw(connection, user_id, account_id, amount):
             (amount, account_id),
         )
 
-        # today = datetime.date.today().isoformat()
-        # print(today)
         
         cursor.execute(
             "INSERT INTO Transactions (user_id, account_id, transaction_type, amount, transaction_date) VALUES (%s, %s, 'withdrawal', %s, now())",
@@ -129,8 +127,15 @@ def withdraw(connection, user_id, account_id, amount):
         return False
 
 
-def calculate_interest(connection, account_id):
+def calculate_interest(connection, account_id, user_id):
     cursor = connection.cursor()
+
+    cursor.execute("SELECT user_id FROM Accounts WHERE id = %s", (account_id,))
+    account_user_id = cursor.fetchone()
+    if account_user_id[0] != user_id:
+        print("Unauthorised user for account")
+        return
+
     cursor.execute(
         "SELECT balance, interest_rate, last_interest_date, account_type FROM Accounts WHERE id = %s",
         (account_id,),
@@ -159,14 +164,23 @@ def transfer_funds(connection, user_id, from_account_id, to_account_id, amount):
         print("Funds transferred successfully!")
 
 
-def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period):
+def apply_for_loan(connection, user_id, loan_amount, interest_rate, loan_period, account_id):
     cursor = connection.cursor()
+
+    cursor.execute("SELECT user_id FROM Accounts WHERE id = %s", (account_id,))
+    account_user_id = cursor.fetchone()
+    if account_user_id[0] != user_id:
+        print("Unauthorised user for account")
+        return
+
+    amount = loan_amount +  (loan_amount * interest_rate * loan_period) / 1200
     cursor.execute(
         "INSERT INTO Loans (user_id, loan_amount, interest_rate, loan_period) VALUES (%s, %s, %s, %s)",
-        (user_id, loan_amount +  (loan_amount * interest_rate * loan_period) / 1200, interest_rate, loan_period),
+        (user_id, amount, interest_rate, loan_period),
 
     )
     connection.commit()
+    deposit(connection, user_id, account_id, loan_amount)
     print("Loan application successful!")
 
 
@@ -193,8 +207,15 @@ def repay_loan(connection, loan_id, account_id, amount, user_id):
         print("Repayment Failed")
 
 
-def view_statement(connection, account_id):
+def view_statement(connection, account_id, user_id):
     cursor = connection.cursor()
+
+    cursor.execute("SELECT user_id FROM Accounts WHERE id = %s", (account_id,))
+    account_user_id = cursor.fetchone()
+    if account_user_id[0] != user_id:
+        print("Unauthorised user for account")
+        return
+    
     cursor.execute("SELECT * FROM Transactions WHERE account_id = %s", (account_id,))
     transactions = cursor.fetchall()
     if not transactions:
@@ -340,8 +361,8 @@ def main():
 
 def user_menu(connection, user):
     should_exit = False
-    while not should_exit:
-        try:
+    try:
+        while not should_exit:
             print("\nUser Menu")
             print("1. Create Account")
             print("2. Deposit")
@@ -376,7 +397,8 @@ def user_menu(connection, user):
                 loan_amount = float(input("Enter loan amount: "))
                 interest_rate = float(input("Enter interest rate: "))
                 loan_period = int(input("Enter loan period (in months): "))
-                apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period)
+                account_id = int(input("Enter account ID to deposit money into: "))
+                apply_for_loan(connection, user[0], loan_amount, interest_rate, loan_period, account_id)
             elif choice == "6":
                 loan_id = int(input("Enter loan ID: "))
                 repay_from_account_id = int(input("Enter account to repay from: "))
@@ -384,21 +406,21 @@ def user_menu(connection, user):
                 repay_loan(connection, loan_id, repay_from_account_id, amount, user[0])
             elif choice == "7":
                 account_id = int(input("Enter account ID: "))
-                view_statement(connection, account_id)
+                view_statement(connection, account_id, user[0])
             elif choice == "8":
                 get_all_accounts(connection, user[0])
             elif choice == "9":
                 get_all_active_loans(connection, user[0])
             elif choice == "10":
                 account_id = int(input("Enter account ID: "))
-                calculate_interest(connection, account_id)
+                calculate_interest(connection, account_id, user[0])
             elif choice == "11":
                 print("Logging out...")
                 should_exit = True
             else:
                 print("Invalid choice. Please try again.")
-        except:
-            user_menu(connection, user)
+    except:
+        user_menu(connection, user)
 
 
 if __name__ == "__main__":
